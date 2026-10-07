@@ -17,12 +17,29 @@ class Car:
     def off_screen(self,height):
         return self.rect.top>height+100 or self.rect.bottom<-100
 
-    def draw(self,screen):
+    def draw_headlights(self,screen):
+        reach=170
+        near_y=self.rect.top+4 if self.direction<0 else self.rect.bottom-4
+        far_y=near_y-reach if self.direction<0 else near_y+reach
+        center_x=self.rect.centerx
+        points=[
+            (center_x-20,near_y),
+            (center_x+20,near_y),
+            (center_x+66,far_y),
+            (center_x-66,far_y),
+        ]
+        pygame.draw.polygon(screen,(255,225,145,38),points)
+
+    def draw(self,screen,night=False):
         pygame.draw.rect(screen,self.color,self.rect,border_radius=8)
         pygame.draw.rect(screen,(180,220,240),pygame.Rect(self.rect.x+8,self.rect.y+10,44,22),border_radius=4)
         for wx in [self.rect.x+6,self.rect.right-16]:
             for wy in [self.rect.y+4,self.rect.bottom-16]:
                 pygame.draw.rect(screen,(30,30,30),pygame.Rect(wx,wy,10,12),border_radius=3)
+        if night:
+            headlight_y=self.rect.bottom-14 if self.direction>0 else self.rect.top+4
+            for light_x in [self.rect.left+16,self.rect.right-26]:
+                pygame.draw.ellipse(screen,(255,245,180),pygame.Rect(light_x,headlight_y,10,8))
 
 def make_car(lane_idx,height,speed):
     x=lane_idx*LANE_W
