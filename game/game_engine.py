@@ -2,6 +2,7 @@ import pygame
 import random
 from game.player import Player,LANE_W
 from game.traffic import Car,make_car
+from game.high_scores import load_high_scores,save_high_scores
 
 LANES=8
 WIDTH=LANES*LANE_W
@@ -21,6 +22,7 @@ class GameEngine:
         self.clock=pygame.time.Clock()
         self.font=pygame.font.SysFont("monospace",24,bold=True)
         self.big_font=pygame.font.SysFont("monospace",44,bold=True)
+        self.high_scores=load_high_scores()
         self.reset()
 
     def reset(self):
@@ -40,6 +42,16 @@ class GameEngine:
         self.unsafe_in_river=False
         self.game_over=False
         self.won=False
+        self.score_recorded=False
+
+    def _record_score(self):
+        if self.score_recorded:
+            return
+        self.score_recorded=True
+        updated=sorted(self.high_scores+[self.score//10],reverse=True)[:5]
+        if updated!=self.high_scores:
+            self.high_scores=updated
+            save_high_scores(self.high_scores)
 
     def _move_raft(self):
         previous_x=self.raft.x
@@ -96,6 +108,8 @@ class GameEngine:
         if self.score%300==0: self.speed=min(10,self.speed+0.5)
         if self.player.rect.top<=10:
             self.won=True
+        if self.game_over or self.won:
+            self._record_score()
 
     def draw(self):
         self.screen.fill(BG)
@@ -134,9 +148,15 @@ class GameEngine:
         ov.fill((0,0,0,150))
         self.screen.blit(ov,(0,0))
         m=self.big_font.render(text,True,color)
-        sub=self.font.render("Press R to Restart",True,(200,200,200))
-        self.screen.blit(m,(WIDTH//2-m.get_width()//2,HEIGHT//2-40))
-        self.screen.blit(sub,(WIDTH//2-sub.get_width()//2,HEIGHT//2+20))
+        sub=self.font.render(f"Score: {self.score//10}  Press R to Restart",True,(200,200,200))
+        heading=self.font.render("TOP 5 HIGH SCORES",True,(245,210,100))
+        self.screen.blit(m,(WIDTH//2-m.get_width()//2,HEIGHT//2-115))
+        self.screen.blit(sub,(WIDTH//2-sub.get_width()//2,HEIGHT//2-55))
+        self.screen.blit(heading,(WIDTH//2-heading.get_width()//2,HEIGHT//2))
+        for rank in range(5):
+            score=str(self.high_scores[rank]) if rank<len(self.high_scores) else "---"
+            entry=self.font.render(f"{rank+1}.  {score}",True,(230,230,230))
+            self.screen.blit(entry,(WIDTH//2-entry.get_width()//2,HEIGHT//2+32+rank*30))
 
     def run(self):
         running=True
