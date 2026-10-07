@@ -8,6 +8,10 @@ WIDTH=LANES*LANE_W
 HEIGHT=600
 FPS=60
 BG=(60,60,60)
+RIVER_HEIGHT=90
+RIVER_TOP=(HEIGHT-RIVER_HEIGHT)//2
+RAFT_WIDTH=180
+RAFT_SPEED=2.5
 
 class GameEngine:
     def __init__(self):
@@ -28,8 +32,29 @@ class GameEngine:
         self.score=0
         self.lives=3
         self.colliding_cars=set()
+        self.river=pygame.Rect(0,RIVER_TOP,WIDTH,RIVER_HEIGHT)
+        self.raft=pygame.Rect(0,RIVER_TOP,RAFT_WIDTH,RIVER_HEIGHT)
+        self.raft_x=float(self.raft.x)
+        self.raft_speed=RAFT_SPEED
+        self.riding_raft=False
+        self.unsafe_in_river=False
         self.game_over=False
         self.won=False
+
+    def _move_raft(self):
+        previous_x=self.raft.x
+        self.raft_x+=self.raft_speed
+        if self.raft_x<=0 or self.raft_x>=WIDTH-RAFT_WIDTH:
+            self.raft_x=max(0,min(WIDTH-RAFT_WIDTH,self.raft_x))
+            self.raft_speed=-self.raft_speed
+        self.raft.x=round(self.raft_x)
+        return self.raft.x-previous_x
+
+    def _lose_life(self):
+        if self.lives>0:
+            self.lives-=1
+            if self.lives==0:
+                self.game_over=True
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -40,6 +65,9 @@ class GameEngine:
     def update(self):
         if self.game_over or self.won: return
         keys=pygame.key.get_pressed()
+        raft_dx=self._move_raft()
+        if self.riding_raft:
+            self.player.rect.x=max(0,min(WIDTH-self.player.rect.width,self.player.rect.x+raft_dx))
         self.player.move(keys,0,WIDTH)
         self.timer+=1
         if self.timer>=self.spawn_interval:
@@ -47,14 +75,22 @@ class GameEngine:
             self.cars.append(make_car(lane,HEIGHT,self.speed))
             self.timer=0
             self.spawn_interval=max(22,self.spawn_interval-0.2)
+        in_river=self.river.collidepoint(self.player.rect.center)
+        on_raft=in_river and self.raft.left<=self.player.rect.centerx<=self.raft.right
+        if in_river and not on_raft:
+            if not self.unsafe_in_river and not self.game_over:
+                self._lose_life()
+            self.unsafe_in_river=True
+            self.riding_raft=False
+        else:
+            self.unsafe_in_river=False
+            self.riding_raft=on_raft
         for c in self.cars:
             c.update()
-            if c.rect.colliderect(self.player.rect):
+            if not in_river and c.rect.colliderect(self.player.rect):
                 if c not in self.colliding_cars and not self.game_over:
-                    self.lives-=1
-                    if self.lives==0:
-                        self.game_over=True
-        self.colliding_cars={c for c in self.cars if c.rect.colliderect(self.player.rect)}
+                    self._lose_life()
+        self.colliding_cars={c for c in self.cars if not in_river and c.rect.colliderect(self.player.rect)}
         self.cars=[c for c in self.cars if not c.off_screen(HEIGHT)]
         self.score+=1
         if self.score%300==0: self.speed=min(10,self.speed+0.5)
@@ -73,6 +109,15 @@ class GameEngine:
         pygame.draw.rect(self.screen,(150,130,110),pygame.Rect(0,HEIGHT-50,WIDTH,50))
         pygame.draw.rect(self.screen,(150,130,110),pygame.Rect(0,0,WIDTH,30))
         for c in self.cars: c.draw(self.screen)
+        pygame.draw.rect(self.screen,(35,115,145),self.river)
+        for y in range(self.river.top+10,self.river.bottom,20):
+            for x in range((y//20%2)*24,WIDTH,72):
+                pygame.draw.line(self.screen,(65,145,165),(x,y),(x+20,y),2)
+        pygame.draw.rect(self.screen,(80,48,26),self.raft,border_radius=8)
+        inner_raft=self.raft.inflate(-8,-8)
+        pygame.draw.rect(self.screen,(150,98,48),inner_raft,border_radius=6)
+        for y in range(inner_raft.top+12,inner_raft.bottom,16):
+            pygame.draw.line(self.screen,(95,58,30),(inner_raft.left+3,y),(inner_raft.right-3,y),3)
         self.player.draw(self.screen)
         hud=pygame.Rect(0,0,WIDTH,30)
         pygame.draw.rect(self.screen,(20,20,20),hud)
